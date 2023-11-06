@@ -1,0 +1,4 @@
+module CHidApi {
+    header "hidapi/hidapi.h"
+    export *
+}

@@ -1,4 +1,5 @@
 module CHidApi {
     header "hidapi/hidapi.h"
+    header "mac/hidapi_darwin.h"
     export *
 }

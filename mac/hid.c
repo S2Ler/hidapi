@@ -38,9 +38,6 @@
 
 #include "hidapi_darwin.h"
 
-/* As defined in AppKit.h, but we don't need the entire AppKit for a single constant. */
-extern const double NSAppKitVersionNumber;
-
 /* Barrier implementation because Mac OSX doesn't have pthread_barrier.
    It also doesn't have clock_gettime(). So much for POSIX and SUSv2.
    This implementation came from Brent Priddy and was posted on
@@ -86,16 +83,18 @@ static int pthread_barrier_wait(pthread_barrier_t *barrier)
 {
 	pthread_mutex_lock(&barrier->mutex);
 	++(barrier->count);
-	if(barrier->count >= barrier->trip_count)
-	{
+	if (barrier->count >= barrier->trip_count) {
 		barrier->count = 0;
-		pthread_cond_broadcast(&barrier->cond);
 		pthread_mutex_unlock(&barrier->mutex);
+		pthread_cond_broadcast(&barrier->cond);
 		return 1;
 	}
-	else
-	{
+	else {
+		do {
 		pthread_cond_wait(&barrier->cond, &(barrier->mutex));
+		}
+		while (barrier->count != 0);
+
 		pthread_mutex_unlock(&barrier->mutex);
 		return 0;
 	}
@@ -466,7 +465,7 @@ int HID_API_EXPORT hid_init(void)
 	register_global_error(NULL);
 
 	if (!hid_mgr) {
-    is_macos_10_10_or_greater = true;
+		is_macos_10_10_or_greater = (kCFCoreFoundationVersionNumber >= 1151.16); /* kCFCoreFoundationVersionNumber10_10 */
 		hid_darwin_set_open_exclusive(1); /* Backward compatibility */
 		return init_hid_manager();
 	}
@@ -1188,7 +1187,9 @@ static int return_data(hid_device *dev, unsigned char *data, size_t length)
 	   return buffer (data), and delete the liked list item. */
 	struct input_report *rpt = dev->input_reports;
 	size_t len = (length < rpt->len)? length: rpt->len;
+	if (data != NULL) {
 	memcpy(data, rpt->data, len);
+	}
 	dev->input_reports = rpt->next;
 	free(rpt->data);
 	free(rpt);
@@ -1338,6 +1339,11 @@ int HID_API_EXPORT hid_send_feature_report(hid_device *dev, const unsigned char 
 int HID_API_EXPORT hid_get_feature_report(hid_device *dev, unsigned char *data, size_t length)
 {
 	return get_report(dev, kIOHIDReportTypeFeature, data, length);
+}
+
+int HID_API_EXPORT hid_send_output_feature_report(hid_device *dev, const unsigned char *data, size_t length)
+{
+	return set_report(dev, kIOHIDReportTypeOutput, data, length);
 }
 
 int HID_API_EXPORT HID_API_CALL hid_get_input_report(hid_device *dev, unsigned char *data, size_t length)
